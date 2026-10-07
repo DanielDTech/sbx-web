@@ -78,7 +78,7 @@ Test only what this repository owns. The table below is the line.
 | Dependency | Owns | So this repo must not test |
 | --- | --- | --- |
 | `sbx-lib` (`github:DanielDTech/sbx-lib#v0.1.1`) | Bookmark validation rules (`validateBookmark`) and the date and tag formatting (`formatDate`, `formatTags`) | The validation rules themselves, or date/tag formatting rules. Test only that sbx-web calls them and renders what they return. |
-| `sbx-api` (over HTTP, not a package) | Bookmark storage, pagination and url normalization | Storage, paging arithmetic or normalization behaviour. Test only how sbx-web behaves against the answers and failures the API gives it. |
+| `sbx-api` (over HTTP, not a package) | Bookmark storage and pagination. **Url normalization is not sbx-api's own** — sbx-api delegates it to `sbx-core` (`github:DanielDTech/sbx-core#v1.0.0`, maintained outside the sbx project), whose `normalizeUrl` lowercases the host, drops a default port, drops the fragment and drops a bare trailing slash | Storage, paging arithmetic or normalization behaviour. Normalization is two repositories away, behind sbx-api in sbx-core; test none of it. Test only how sbx-web behaves against the answers and failures the API gives it. |
 | `node:http` | The HTTP server | Node's own HTTP implementation. |
 | global `fetch` | The HTTP client | Node's own fetch. In tests it is injected, so no test should reach the network. |
 
@@ -87,9 +87,10 @@ dependencies: the test runner is `node --test`, built into Node.
 
 ## Local environment
 
-The point of the local environment is fast iteration on sbx-web **in
-isolation**, without standing up anything else. All commands below were run and
-verified from the repository root.
+The local environment has two modes: fast iteration on sbx-web **in
+isolation**, without standing up anything else, and the integrated end-to-end
+path against a real sbx-api. All commands below were run and verified from the
+repository root.
 
 ### Unit tests
 
@@ -141,20 +142,76 @@ This needs a running sbx-api reachable at `SBX_API_URL` and accepting
 `SBX_API_KEY`. With no API listening, `GET /` returns the `502` page — which is
 correct behaviour, not a crash, but it is not the UI.
 
-### Known limitation: the real end-to-end path is blocked
+### End to end against a real sbx-api
 
-**sbx-api cannot be installed or run at all today.** Its `package.json` pins
-`"sbx-core": "github:DanielDTech/sbx-core#v1.0.0"`, and the repository
-`DanielDTech/sbx-core` **does not exist on GitHub** — `gh repo view
-DanielDTech/sbx-core` fails to resolve it. `npm install` in sbx-api therefore
-cannot complete, so sbx-api cannot start.
+This is the **only path that exercises all three repositories together** —
+sbx-web, sbx-api, and sbx-core behind sbx-api — and it is **the path the
+project's web QA validates on**. Everything below was run and verified from the
+repository root.
 
-What this blocks: nobody can currently exercise sbx-web end to end against a
-real API. That means the real request path through `src/client.js` (the
-`x-api-key` header on the wire, real response shapes, real failure modes), real
-pagination over stored bookmarks, and real url normalization are all unverified
-against the real thing. Everything sbx-web itself owns is still fully
-exercisable — that is what `npm test` and `npm run dev` are for — but the
-integration seam is not. Unblocking it requires the `sbx-core` dependency to be
-resolved in sbx-api; it is not something sbx-web can fix from here, and the
-stub harness is not a substitute for it.
+Two terminals. The data file is a throwaway under `/tmp` so nobody dirties
+sbx-api's own `data/` directory.
+
+Terminal 1 — sbx-api:
+
+```
+cd ../sbx-api
+npm install
+mkdir -p /tmp/sbx-e2e
+PORT=4601 SBX_DATA_FILE=/tmp/sbx-e2e/bookmarks.json SBX_API_KEYS=e2e-key npm start
+```
+
+Terminal 2 — sbx-web:
+
+```
+npm install
+PORT=4701 SBX_API_URL=http://localhost:4601 SBX_API_KEY=e2e-key npm start
+```
+
+Both ports are deliberately off the defaults (4600 and 4700) so this pair never
+collides with anything already running, including the stub harness on 4701 —
+stop the harness first if it is up. `SBX_API_KEYS` on the API side is a
+comma-separated list of accepted keys; `SBX_API_KEY` on the web side is the
+single key sbx-web sends as `x-api-key`. **The two must agree** or every page is
+the `502`.
+
+Then open `http://localhost:4701`. A correct result looks like this:
+
+- `GET /` is `200`. The store starts empty, so the list is empty and only the
+  add form renders.
+- Submitting the add form — title `From Web`, url `https://nodejs.org/`, tags
+  `node` — redirects **`303`** to `/`.
+- `GET /` now renders the live bookmark, with the date and the `#tags` coming
+  from sbx-lib's `formatDate` and `formatTags` over **real API data**:
+
+  ```
+  <li><a href="https://nodejs.org">From Web</a> <small>2026-10-07 #node</small></li>
+  ```
+
+- The bookmark is really in the API, not in sbx-web:
+
+  ```
+  curl -s http://localhost:4601/bookmarks -H 'x-api-key: e2e-key'
+  ```
+
+  lists it — and its url is stored normalized, `https://nodejs.org` for the
+  `https://nodejs.org/` that was posted. That normalization belongs to
+  **sbx-core, behind sbx-api, two repositories away**: see the dependency table
+  above, and do not test it here.
+- Invalid input still behaves: posting an empty title renders `422` with the
+  error list, now through the real client rather than a stub.
+
+When you are done, stop both processes and `rm -rf /tmp/sbx-e2e`.
+
+### Which one to reach for
+
+Both local paths matter and neither replaces the other:
+
+- **The stub harness (`npm run dev`)** — fast isolated iteration, no API and no
+  network. Reach for it for **interface work**: rendering, escaping, routing,
+  pagination links, validation messages. Nothing about real API behaviour can be
+  learned from it.
+- **End to end against a real sbx-api** — the integrated path. Reach for it for
+  **anything touching `src/client.js` or the API contract**: the `x-api-key`
+  header on the wire, real response shapes, real failure modes, real stored
+  data.

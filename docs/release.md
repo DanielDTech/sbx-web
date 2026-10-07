@@ -38,10 +38,11 @@ None of this exists yet; it would all have to be built and decided:
 3. **Configuration delivery** — a way to set `PORT`, `SBX_API_URL` and
    `SBX_API_KEY` in the target environment, and somewhere real to keep
    `SBX_API_KEY` as a secret rather than defaulting to `dev-key`.
-4. **A reachable sbx-api**, which is blocked today: sbx-api pins
-   `github:DanielDTech/sbx-core#v1.0.0` and that repository does not exist, so
-   sbx-api cannot be installed or run. Deploying sbx-web with nothing to talk to
-   would serve only its `502` page.
+4. **A reachable sbx-api.** This is no longer blocked: `sbx-core` is published
+   at `github:DanielDTech/sbx-core#v1.0.0`, so sbx-api installs and runs, and
+   the end-to-end path is documented in [`index.md`](index.md). But something
+   still has to run sbx-api in the target environment — deploying sbx-web with
+   nothing to talk to would serve only its `502` page.
 5. **A release convention** — a tagging and versioning scheme, and a workflow
    that builds and promotes an artifact on it.
 

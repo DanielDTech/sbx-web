@@ -1,0 +1,9 @@
+{
+  "name": "sbx-web",
+  "version": "0.1.0",
+  "description": "Web app for sbx bookmarks",
+  "type": "module",
+  "scripts": { "test": "node --test", "start": "node bin/start.js" },
+  "dependencies": { "sbx-lib": "github:DanielDTech/sbx-lib#v0.1.0" },
+  "engines": { "node": ">=22" }
+}

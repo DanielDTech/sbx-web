@@ -26,12 +26,20 @@ makes the client testable in isolation with no network.
 
 ### ui — `src/ui/pages.js`
 
-Owns rendering and HTML escaping. `renderIndex({ items, page, pages }, errors)`
-builds the whole page: the heading, the error list, the add form, the bookmark
-rows and the previous/next navigation. `escapeHtml` escapes the five HTML
-entities (`&`, `<`, `>`, `"`, `'`). **This area owns the escaping of every
-untrusted value** — bookmark titles, urls, tags and validation messages all
-reach the browser through here.
+Owns rendering and HTML escaping. `renderIndex({ items, page, pages, total },
+errors)` builds the whole page: the heading, the total bookmark count beside it,
+the error list, the add form, the bookmark rows and the previous/next
+navigation. `escapeHtml` escapes the five HTML entities (`&`, `<`, `>`, `"`,
+`'`). **This area owns the escaping of every untrusted value** — bookmark
+titles, urls, tags and validation messages all reach the browser through here.
+
+The header count is the `total` the API reported, not the number of rows on the
+page, so it reads the same on every page: `7 bookmarks`, `1 bookmark`,
+`0 bookmarks`. A `total` that is not a whole number of zero or more — absent, or
+any other type — renders `count unavailable` rather than `undefined` or `NaN`.
+The `502` page is not rendered here and carries no count at all: when the API
+cannot be reached there is no total to report, and a stale or invented number
+would be worse than none.
 
 ### server — `src/server.js`
 
@@ -55,7 +63,7 @@ v24.21.0.
 
 ```
 npm install     # installs the single dependency, sbx-lib, from GitHub
-npm test        # node --test — 10 tests, all green
+npm test        # node --test — 18 tests, all green
 npm start       # node bin/start.js
 ```
 
@@ -99,7 +107,7 @@ npm install
 npm test
 ```
 
-10 tests, all green, no network. `test/client.test.js` injects a fake `fetch`,
+18 tests, all green, no network. `test/client.test.js` injects a fake `fetch`,
 `test/pages.test.js` calls `renderIndex` directly, `test/server.test.js` and
 `test/dev.test.js` start the real server on port 0 with a stub client.
 
@@ -119,6 +127,8 @@ listens on `PORT`, **default 4701**, so it never collides with `npm start` on
 It covers every pathway sbx-web owns, each verified by hand:
 
 - the bookmark list, with dates and `#tags` rendered through sbx-lib
+- the header count — the stub reports a total of four, so every page reads
+  `4 bookmarks` however many rows it shows
 - the pagination links — the stub pages two bookmarks at a time, so `/` shows
   "Next" and `/?page=2` shows "Previous"
 - the add form, and a valid submission redirecting `303` to `/`
@@ -178,7 +188,7 @@ the `502`.
 Then open `http://localhost:4701`. A correct result looks like this:
 
 - `GET /` is `200`. The store starts empty, so the list is empty and only the
-  add form renders.
+  add form renders, and the header is expected to read `0 bookmarks`.
 - Submitting the add form — title `From Web`, url `https://nodejs.org/`, tags
   `node` — redirects **`303`** to `/`.
 - `GET /` now renders the live bookmark, with the date and the `#tags` coming
@@ -187,6 +197,13 @@ Then open `http://localhost:4701`. A correct result looks like this:
   ```
   <li><a href="https://nodejs.org">From Web</a> <small>2026-10-07 #node</small></li>
   ```
+
+  and the header is expected to read `1 bookmark`. The header count comes from
+  the `total` field of the API's own list response, so it is the one number on
+  the page to check against the `GET /bookmarks` call below rather than against
+  the visible rows. The two header expectations here are the only lines in this
+  section not observed on the run that produced it: the live header count is
+  validated by web QA against issue #3, not from an engineer's session.
 
 - The bookmark is really in the API, not in sbx-web:
 

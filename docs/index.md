@@ -187,9 +187,12 @@ It covers every pathway sbx-web owns, each verified by hand:
 - the bookmark list, with dates and `#tags` rendered through sbx-lib
 - the header count — the stub reports a total of four, so every page reads
   `4 bookmarks` however many rows it shows
-- notes — one seeded bookmark carries a note and the rest carry no note key at
-  all, so both the note element and its absence are on the page, and a note
-  typed into the form is stored by the stub and rendered on the next load
+- notes — the second seeded bookmark carries a plain note and its neighbour on
+  the same page carries no note key at all, so both the note element and its
+  absence are on the `/` the harness lands on, and the escaping bookmark on
+  `/?page=2` carries a note with a script tag in it. A note typed into the form
+  is stored by the stub, and because the stub appends it renders on the last
+  page rather than on the `/` the `303` lands on
 - the pagination links — the stub pages two bookmarks at a time, so `/` shows
   "Next" and `/?page=2` shows "Previous"
 - the add form, and a valid submission redirecting `303` to `/`

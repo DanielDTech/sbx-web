@@ -1,6 +1,6 @@
 import { createServer as createHttpServer } from 'node:http';
 import { validateBookmark } from 'sbx-lib';
-import { renderIndex } from './ui/pages.js';
+import { renderFailure, renderIndex } from './ui/pages.js';
 
 const readForm = (req) => new Promise((resolve) => {
   let data = '';
@@ -29,7 +29,7 @@ export function createServer({ client }) {
       }
       return html(res, 404, 'Not found');
     } catch (err) {
-      return html(res, 502, `The bookmarks API failed: ${err.message}`);
+      return html(res, 502, renderFailure(err.message));
     }
   });
 }

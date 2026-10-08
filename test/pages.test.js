@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { renderIndex } from '../src/ui/pages.js';
+import { renderFailure, renderIndex } from '../src/ui/pages.js';
 
 const page = (items, extra = {}) => ({ items, page: 1, pages: 1, total: items.length, ...extra });
 
@@ -49,4 +49,12 @@ test('a missing or non-numeric total is reported as unavailable, never as undefi
     assert.doesNotMatch(html, /NaN/);
     assert.doesNotMatch(html, /<script>/);
   }
+});
+
+test('the failure page escapes its detail, so no caller can put a tag on it', () => {
+  const detail = '<svg onload=top.z=1>';
+  const page = renderFailure(detail);
+  assert.ok(page.includes('The bookmarks API failed'));
+  for (const opening of ['<svg', '<script', '<iframe', '<img']) assert.ok(!page.includes(opening));
+  assert.ok(!page.includes(detail));
 });

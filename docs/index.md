@@ -112,7 +112,7 @@ v24.21.0.
 
 ```
 npm install     # installs the single dependency, sbx-lib, from GitHub
-npm test        # node --test — 38 tests, all green
+npm test        # node --test — 39 tests, all green
 npm start       # node bin/start.js
 ```
 
@@ -156,8 +156,11 @@ npm install
 npm test
 ```
 
-38 tests, all green, no network. `test/client.test.js` injects a fake `fetch`,
-`test/pages.test.js` calls `renderIndex` and `renderFailure` directly,
+39 tests, all green, no network. `test/client.test.js` injects a fake `fetch`,
+`test/pages.test.js` calls `renderIndex` and `renderFailure` directly, and reads
+`src/ui/pages.js` as text in one test, the only way to prove the note input's
+`maxlength` is interpolated from `SBX_LIB_NOTE_MAX_CODE_UNITS` rather than being a
+literal of the same value, which no rendered page can distinguish,
 `test/server.test.js` and `test/dev.test.js` start the real server on port 0
 with a stub client, `test/failure.test.js` puts the real client and the real
 server in front of a stand-in API on port 0 that answers with bodies that are

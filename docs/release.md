@@ -10,7 +10,7 @@ That is the accurate state, not an omission:
   project, so there is no consumer to publish for.
 - **No tag convention in use.** `git tag` is empty. Sibling repositories are
   consumed by git ref (sbx-web itself depends on
-  `github:DanielDTech/sbx-lib#v0.1.1`), but nothing depends on sbx-web, so no
+  `github:DanielDTech/sbx-lib#v0.1.2`), but nothing depends on sbx-web, so no
   ref has ever needed to be cut here.
 - **Version `0.1.0` in `package.json`,** unchanged since the initial commit. It
   is not wired to anything: no script reads it, no artifact carries it.

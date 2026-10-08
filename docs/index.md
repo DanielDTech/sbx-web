@@ -106,7 +106,7 @@ Test only what this repository owns. The table below is the line.
 
 | Dependency | Owns | So this repo must not test |
 | --- | --- | --- |
-| `sbx-lib` (`github:DanielDTech/sbx-lib#v0.1.1`) | Bookmark validation rules (`validateBookmark`) and the date and tag formatting (`formatDate`, `formatTags`) | The validation rules themselves, or date/tag formatting rules. Test only that sbx-web calls them and renders what they return. |
+| `sbx-lib` (`github:DanielDTech/sbx-lib#v0.1.2`) | Bookmark validation rules (`validateBookmark`) and the date and tag formatting (`formatDate`, `formatTags`) | The validation rules themselves, or date/tag formatting rules. Test only that sbx-web calls them and renders what they return. |
 | `sbx-api` (over HTTP, not a package) | Bookmark storage and pagination. **Url normalization is not sbx-api's own** — sbx-api delegates it to `sbx-core` (`github:DanielDTech/sbx-core#v1.0.0`, maintained outside the sbx project), whose `normalizeUrl` lowercases the host, drops a default port, drops the fragment and drops a bare trailing slash | Storage, paging arithmetic or normalization behaviour. Normalization is two repositories away, behind sbx-api in sbx-core; test none of it. Test only how sbx-web behaves against the answers and failures the API gives it. |
 | `node:http` | The HTTP server | Node's own HTTP implementation. |
 | global `fetch` | The HTTP client | Node's own fetch. In tests it is injected, so no test should reach the network. |

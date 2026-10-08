@@ -4,6 +4,6 @@
   "description": "Web app for sbx bookmarks",
   "type": "module",
   "scripts": { "test": "node --test", "start": "node bin/start.js", "dev": "node bin/dev.js" },
-  "dependencies": { "sbx-lib": "github:DanielDTech/sbx-lib#v0.1.1" },
+  "dependencies": { "sbx-lib": "github:DanielDTech/sbx-lib#v0.1.2" },
   "engines": { "node": ">=22" }
 }

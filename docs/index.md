@@ -83,6 +83,25 @@ any other type — renders `count unavailable` rather than `undefined` or `NaN`.
 The `502` page carries no count at all: when the API cannot be reached there is
 no total to report, and a stale or invented number would be worse than none.
 
+The document title carries the same total, in the literal form Danny gave:
+`Bookmarks (12)`, and `Bookmarks (1)` and `Bookmarks (0)` at one and none (#12).
+It is the `total`, not the rows on the page, so it reads the same on every page
+of a list and agrees with the header on the number. It deliberately does **not**
+agree on the wording: the header says `1 bookmark` in the singular and the title
+says `Bookmarks (1)`, because a tab title names the page rather than describing
+the row. Nobody should later "fix" that difference.
+
+One predicate, `countsBookmarks`, decides both the header phrasing and the
+title, so the two can never disagree about whether a total is a count. A `total`
+that is not a whole number of zero or more leaves the title as the bare word
+`Bookmarks`, with no parentheses and no count: absent, `null`, `12.5`, `-1`,
+`NaN` and the string `"12"` all take that path, and no total of any shape can
+reach the title as text. The `422` error page carries the count in its title
+like any other render of the index, since `renderIndex` serves both. The `502`
+page's title stays the bare word: `renderFailure` is a separate render with no
+total, and it is deliberately not routed through the title the index uses
+(Scrum Master's ruling, 2026-10-08).
+
 ### server — `src/server.js`
 
 Owns routing and request handling: `GET /` and `POST /add`. It reads the
@@ -112,7 +131,7 @@ v24.21.0.
 
 ```
 npm install     # installs the single dependency, sbx-lib, from GitHub
-npm test        # node --test — 39 tests, all green
+npm test        # node --test — 44 tests, all green
 npm start       # node bin/start.js
 ```
 
@@ -156,7 +175,7 @@ npm install
 npm test
 ```
 
-39 tests, all green, no network. `test/client.test.js` injects a fake `fetch`,
+44 tests, all green, no network. `test/client.test.js` injects a fake `fetch`,
 `test/pages.test.js` calls `renderIndex` and `renderFailure` directly, and reads
 `src/ui/pages.js` as text in one test, the only way to prove the note input's
 `maxlength` is interpolated from `SBX_LIB_NOTE_MAX_CODE_UNITS` rather than being a
@@ -171,6 +190,20 @@ bodies it receives so the send path is asserted on the wire rather than through
 a stub's arguments. Its stand-in carries the note key only on the item that has
 one, with note-less items in the majority, because a stand-in that always
 carries the key would pass a renderer that fails end to end.
+`test/title.test.js` uses a stand-in API the same way for the document title,
+once with a hostile `total` and once with a real one in the same run, so the
+hostile case cannot pass by the title being dropped altogether.
+
+The committed title assertions read the response string, because Node ships no
+`DOMParser` and this repository has no dev dependencies. They are necessary and
+not sufficient: `<title>` is RCDATA, where an entity reference is decoded, so a
+response that looks correctly escaped can still parse to something else, and
+"no handler ran" is not a property of a string at all. The parse-level
+guarantee is re-established per head by web QA reading `document.title` from a
+real browser, never by CI. A regression that is string-safe but parse-unsafe
+would pass CI; that limit is recorded on #12 rather than papered over, and
+adding a test-time parser here is a project decision that was deliberately not
+taken inside that ticket.
 
 ### Isolated stub harness — the whole UI in a browser, with no API
 
@@ -190,6 +223,9 @@ It covers every pathway sbx-web owns, each verified by hand:
 - the bookmark list, with dates and `#tags` rendered through sbx-lib
 - the header count — the stub reports a total of four, so every page reads
   `4 bookmarks` however many rows it shows
+- the tab title — `/`, `/?page=2` and the `422` page all read
+  `Bookmarks (4)`, the same total the header reports, so the title can be read
+  off the browser tab rather than off a response string
 - notes — the second seeded bookmark carries a plain note and its neighbour on
   the same page carries no note key at all, so both the note element and its
   absence are on the `/` the harness lands on, and the escaping bookmark on

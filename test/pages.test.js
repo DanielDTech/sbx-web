@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { renderFailure, renderIndex, SBX_LIB_NOTE_MAX_CODE_UNITS } from '../src/ui/pages.js';
 
 const page = (items, extra = {}) => ({ items, page: 1, pages: 1, total: items.length, ...extra });
@@ -97,4 +98,11 @@ test('a note is rendered as typed, with its surrounding whitespace kept', () => 
 test('the note input takes its maxlength from the constant that names sbx-lib as the owner of the number', () => {
   assert.equal(SBX_LIB_NOTE_MAX_CODE_UNITS, 500);
   assert.ok(renderIndex(page([])).includes(`maxlength="${SBX_LIB_NOTE_MAX_CODE_UNITS}"`), 'the note input carries no maxlength from the constant');
+});
+
+test('the note input interpolates the cap from the constant instead of carrying the number as a literal', () => {
+  const source = readFileSync(new URL('../src/ui/pages.js', import.meta.url), 'utf8');
+  const input = source.match(/<textarea name="note"[^>]*>/)[0];
+  assert.match(input, /maxlength="\$\{SBX_LIB_NOTE_MAX_CODE_UNITS\}"/, 'the maxlength is not interpolated from the constant');
+  assert.doesNotMatch(input, new RegExp(`maxlength="${SBX_LIB_NOTE_MAX_CODE_UNITS}"`), 'the maxlength is a literal in the markup');
 });

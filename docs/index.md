@@ -24,6 +24,18 @@ non-OK response into an `Error` carrying `status` and `body` so callers can
 react to a failure rather than parse one. `fetch` is injectable, which is what
 makes the client testable in isolation with no network.
 
+It reads the response as text and parses it itself, and it decides on the
+status before it needs the parsed body. **`err.body` is the parsed body when
+the response body is JSON, and `null` when it is not** — a non-JSON error body
+is reported as `null` rather than as a raw string, so a caller reading
+`err.body` gets either an object it can use or nothing. The status is on
+`err.status` either way. **No byte of a response body ever reaches
+`err.message`**, which is only ever the client's own `API answered <status>`,
+or `API answered <status> with a body that is not JSON` when an otherwise OK
+response could not be parsed. That matters because a parse failure's own
+message quotes the offending input verbatim: letting one become an error
+message put an API response body on a user's page (#5).
+
 ### ui — `src/ui/pages.js`
 
 Owns rendering and HTML escaping. `renderIndex({ items, page, pages, total },
@@ -31,15 +43,20 @@ errors)` builds the whole page: the heading, the total bookmark count beside it,
 the error list, the add form, the bookmark rows and the previous/next
 navigation. `escapeHtml` escapes the five HTML entities (`&`, `<`, `>`, `"`,
 `'`). **This area owns the escaping of every untrusted value** — bookmark
-titles, urls, tags and validation messages all reach the browser through here.
+titles, urls, tags, validation messages and error detail all reach the browser
+through here.
+
+`renderFailure(detail)` builds the `502` page: the app's own sentence, `The
+bookmarks API failed`, followed by the detail escaped. Nothing renders the
+failure page anywhere else, and no caller can put a tag on it however the
+detail was composed (#5).
 
 The header count is the `total` the API reported, not the number of rows on the
 page, so it reads the same on every page: `7 bookmarks`, `1 bookmark`,
 `0 bookmarks`. A `total` that is not a whole number of zero or more — absent, or
 any other type — renders `count unavailable` rather than `undefined` or `NaN`.
-The `502` page is not rendered here and carries no count at all: when the API
-cannot be reached there is no total to report, and a stale or invented number
-would be worse than none.
+The `502` page carries no count at all: when the API cannot be reached there is
+no total to report, and a stale or invented number would be worse than none.
 
 ### server — `src/server.js`
 
@@ -47,7 +64,11 @@ Owns routing and request handling: `GET /` and `POST /add`. It reads the
 urlencoded form body, splits the comma-separated `tags` field into a list,
 validates the result with sbx-lib's `validateBookmark`, redirects `303` to `/`
 on success, re-renders the page with the errors as `422` on invalid input, and
-turns any thrown API error into a `502` page rather than a crash.
+turns any thrown API error into a `502` page rather than a crash. It composes
+no HTML of its own: the `502` goes through `renderFailure`, so the error detail
+is escaped by the area that owns escaping. An invalid submission becomes a
+`502` rather than a `422` when the API is unreachable, because re-rendering the
+form needs the bookmark list.
 
 ### process entry — `bin/start.js`
 
@@ -63,7 +84,7 @@ v24.21.0.
 
 ```
 npm install     # installs the single dependency, sbx-lib, from GitHub
-npm test        # node --test — 18 tests, all green
+npm test        # node --test — 27 tests, all green
 npm start       # node bin/start.js
 ```
 
@@ -107,9 +128,13 @@ npm install
 npm test
 ```
 
-18 tests, all green, no network. `test/client.test.js` injects a fake `fetch`,
-`test/pages.test.js` calls `renderIndex` directly, `test/server.test.js` and
-`test/dev.test.js` start the real server on port 0 with a stub client.
+27 tests, all green, no network. `test/client.test.js` injects a fake `fetch`,
+`test/pages.test.js` calls `renderIndex` and `renderFailure` directly,
+`test/server.test.js` and `test/dev.test.js` start the real server on port 0
+with a stub client, and `test/failure.test.js` puts the real client and the
+real server in front of a stand-in API on port 0 that answers with bodies that
+are not JSON — the gateway or proxy case sbx-api will not produce itself, and
+the one that needs both processes rather than a stub.
 
 ### Isolated stub harness — the whole UI in a browser, with no API
 

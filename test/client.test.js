@@ -4,7 +4,8 @@ import { createClient } from '../src/client.js';
 
 const fakeFetch = (status, body, calls) => async (url, init) => {
   calls.push({ url, init });
-  return { status, ok: status < 300, json: async () => body };
+  const text = typeof body === 'string' ? body : JSON.stringify(body);
+  return { status, ok: status >= 200 && status < 300, text: async () => text, json: async () => JSON.parse(text) };
 };
 
 test('the client sends the API key and asks for the page', async () => {
@@ -18,4 +19,13 @@ test('the client sends the API key and asks for the page', async () => {
 test('a failed call throws with the status and the body', async () => {
   const client = createClient({ baseUrl: 'http://api', apiKey: 'k', fetch: fakeFetch(422, { errors: ['x'] }, []) });
   await assert.rejects(client.addBookmark({}), (err) => err.status === 422 && err.body.errors[0] === 'x');
+});
+
+test('a non-JSON error body is kept out of the error message entirely', async () => {
+  const client = createClient({ baseUrl: 'http://api', apiKey: 'k', fetch: fakeFetch(500, '<svg onload=top.z=1>', []) });
+  await assert.rejects(client.listBookmarks(1), (err) => {
+    assert.equal(err.status, 500);
+    assert.equal(err.message, 'API answered 500');
+    return true;
+  });
 });

@@ -40,16 +40,41 @@ message put an API response body on a user's page (#5).
 
 Owns rendering and HTML escaping. `renderIndex({ items, page, pages, total },
 errors)` builds the whole page: the heading, the total bookmark count beside it,
-the error list, the add form, the bookmark rows and the previous/next
-navigation. `escapeHtml` escapes the five HTML entities (`&`, `<`, `>`, `"`,
+the error list, the add form, the bookmark rows with their notes and the
+previous/next navigation. `escapeHtml` escapes the five HTML entities (`&`, `<`, `>`, `"`,
 `'`). **This area owns the escaping of every untrusted value** — bookmark
-titles, urls, tags, validation messages and error detail all reach the browser
-through here.
+titles, urls, tags, notes, validation messages and error detail all reach the
+browser through here. A note is free text a user typed, so it is the most
+attacker-influenceable value the app renders and it never goes near a
+hand-built string (#5, #7).
 
 `renderFailure(detail)` builds the `502` page: the app's own sentence, `The
 bookmarks API failed`, followed by the detail escaped. Nothing renders the
 failure page anywhere else, and no caller can put a tag on it however the
 detail was composed (#5).
+
+A bookmark's note renders as a `<p class="note">` inside that bookmark's row,
+escaped. A note of no substance — key absent, empty, or whitespace only —
+renders no note element at all rather than an empty one, so a note-less
+bookmark reads cleanly and no page carries a literal `undefined`. A note is
+rendered exactly as it was typed, in full and untruncated, with its surrounding
+whitespace kept.
+
+**Nothing is done to make a note fit** (Scrum Master's ruling, 2026-10-08). A
+long note without spaces runs off horizontally and that is accepted: the note is
+still readable and still shown, there is no stylesheet in this repository, and
+introducing one is a direction choice rather than a fix. No style attribute, no
+layout wrapper, no truncation, no ellipsis, no tooltip and no soft-break
+characters. Revisited only when a real presentation requirement arrives with a
+deploy target.
+
+`SBX_LIB_NOTE_MAX_CODE_UNITS` is the note length ceiling the note input carries
+as its `maxlength`. The number is sbx-lib's, which is what the name says: the
+attribute is a convenience that stops most over-long notes being typed, and the
+rule that refuses them is `validateBookmark`'s. The measure is **code units**,
+as v0.1.2 ships it and as Danny ruled in decision 2119e5, so 250 two-unit emoji
+count as 500. The cap exists because of the export format, so it is not ours to
+relax or round.
 
 The header count is the `total` the API reported, not the number of rows on the
 page, so it reads the same on every page: `7 bookmarks`, `1 bookmark`,
@@ -62,6 +87,9 @@ no total to report, and a stale or invented number would be worse than none.
 
 Owns routing and request handling: `GET /` and `POST /add`. It reads the
 urlencoded form body, splits the comma-separated `tags` field into a list,
+carries the note through only when the user typed one and sends it untrimmed —
+a blank or whitespace-only input means no `note` key in the request body at all,
+rather than a `null` or an empty string —
 validates the result with sbx-lib's `validateBookmark`, redirects `303` to `/`
 on success, re-renders the page with the errors as `422` on invalid input, and
 turns any thrown API error into a `502` page rather than a crash. It composes
@@ -84,7 +112,7 @@ v24.21.0.
 
 ```
 npm install     # installs the single dependency, sbx-lib, from GitHub
-npm test        # node --test — 27 tests, all green
+npm test        # node --test — 38 tests, all green
 npm start       # node bin/start.js
 ```
 
@@ -106,7 +134,7 @@ Test only what this repository owns. The table below is the line.
 
 | Dependency | Owns | So this repo must not test |
 | --- | --- | --- |
-| `sbx-lib` (`github:DanielDTech/sbx-lib#v0.1.2`) | Bookmark validation rules (`validateBookmark`) and the date and tag formatting (`formatDate`, `formatTags`) | The validation rules themselves, or date/tag formatting rules. Test only that sbx-web calls them and renders what they return. |
+| `sbx-lib` (`github:DanielDTech/sbx-lib#v0.1.2`) | Bookmark validation rules (`validateBookmark`), including the note length ceiling of 500 and the code-unit measure it is counted in, and the date and tag formatting (`formatDate`, `formatTags`) | The validation rules themselves, the note ceiling or how it counts, or date/tag formatting rules. Test only that sbx-web calls them and renders what they return. |
 | `sbx-api` (over HTTP, not a package) | Bookmark storage and pagination. **Url normalization is not sbx-api's own** — sbx-api delegates it to `sbx-core` (`github:DanielDTech/sbx-core#v1.0.0`, maintained outside the sbx project), whose `normalizeUrl` lowercases the host, drops a default port, drops the fragment and drops a bare trailing slash | Storage, paging arithmetic or normalization behaviour. Normalization is two repositories away, behind sbx-api in sbx-core; test none of it. Test only how sbx-web behaves against the answers and failures the API gives it. |
 | `node:http` | The HTTP server | Node's own HTTP implementation. |
 | global `fetch` | The HTTP client | Node's own fetch. In tests it is injected, so no test should reach the network. |
@@ -128,13 +156,18 @@ npm install
 npm test
 ```
 
-27 tests, all green, no network. `test/client.test.js` injects a fake `fetch`,
+38 tests, all green, no network. `test/client.test.js` injects a fake `fetch`,
 `test/pages.test.js` calls `renderIndex` and `renderFailure` directly,
 `test/server.test.js` and `test/dev.test.js` start the real server on port 0
-with a stub client, and `test/failure.test.js` puts the real client and the
-real server in front of a stand-in API on port 0 that answers with bodies that
-are not JSON — the gateway or proxy case sbx-api will not produce itself, and
-the one that needs both processes rather than a stub.
+with a stub client, `test/failure.test.js` puts the real client and the real
+server in front of a stand-in API on port 0 that answers with bodies that are
+not JSON — the gateway or proxy case sbx-api will not produce itself, and the
+one that needs both processes rather than a stub — and `test/note.test.js` does
+the same in front of a stand-in API carrying notes, which records the request
+bodies it receives so the send path is asserted on the wire rather than through
+a stub's arguments. Its stand-in carries the note key only on the item that has
+one, with note-less items in the majority, because a stand-in that always
+carries the key would pass a renderer that fails end to end.
 
 ### Isolated stub harness — the whole UI in a browser, with no API
 
@@ -154,6 +187,9 @@ It covers every pathway sbx-web owns, each verified by hand:
 - the bookmark list, with dates and `#tags` rendered through sbx-lib
 - the header count — the stub reports a total of four, so every page reads
   `4 bookmarks` however many rows it shows
+- notes — one seeded bookmark carries a note and the rest carry no note key at
+  all, so both the note element and its absence are on the page, and a note
+  typed into the form is stored by the stub and rendered on the next load
 - the pagination links — the stub pages two bookmarks at a time, so `/` shows
   "Next" and `/?page=2` shows "Previous"
 - the add form, and a valid submission redirecting `303` to `/`

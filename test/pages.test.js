@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { renderFailure, renderIndex } from '../src/ui/pages.js';
+import { renderFailure, renderIndex, SBX_LIB_NOTE_MAX_CODE_UNITS } from '../src/ui/pages.js';
 
 const page = (items, extra = {}) => ({ items, page: 1, pages: 1, total: items.length, ...extra });
 
@@ -57,4 +57,44 @@ test('the failure page escapes its detail, so no caller can put a tag on it', ()
   assert.ok(page.includes('The bookmarks API failed'));
   for (const opening of ['<svg', '<script', '<iframe', '<img']) assert.ok(!page.includes(opening));
   assert.ok(!page.includes(detail));
+});
+
+const PAYLOAD_TAG_OPENINGS = ['<script', '<svg', '<iframe', '<img'];
+const noted = (note) => ({ id: 1, title: 'Docs', url: 'https://a.com', tags: ['node'], createdAt: '2026-10-07T00:00:00.000Z', note });
+const rowOf = (html) => html.match(/<li>.*?<\/li>/s)[0];
+const noteOf = (html) => html.match(/<p class="note">(.*?)<\/p>/s)?.[1];
+
+test('a note carrying markup is rendered in its row as text and creates no element', () => {
+  const note = '<script>alert(1)</script>';
+  const html = renderIndex(page([noted(note)]));
+  assert.ok(rowOf(html).includes('&lt;script&gt;alert(1)&lt;/script&gt;'), 'the escaped note is missing from the row');
+  for (const opening of PAYLOAD_TAG_OPENINGS) assert.ok(!html.includes(opening), `the page opens a tag from the note (${opening})`);
+  assert.ok(!html.includes(note), 'the page carries the note as one contiguous unescaped run');
+});
+
+test('a note of no substance renders no note element, and never undefined or NaN', () => {
+  for (const note of [undefined, '', '   ']) {
+    const item = noted(note);
+    if (note === undefined) delete item.note;
+    const html = renderIndex(page([item]));
+    assert.ok(!html.includes('class="note"'), `a note element was rendered for ${JSON.stringify(note)}`);
+    assert.doesNotMatch(html, /undefined/);
+    assert.doesNotMatch(html, /NaN/);
+  }
+});
+
+test('a note of the maximum length renders in full, untruncated and byte for byte', () => {
+  for (const note of ['a'.repeat(SBX_LIB_NOTE_MAX_CODE_UNITS), '\u{1f642}'.repeat(SBX_LIB_NOTE_MAX_CODE_UNITS / 2)]) {
+    assert.equal(note.length, SBX_LIB_NOTE_MAX_CODE_UNITS);
+    assert.equal(noteOf(renderIndex(page([noted(note)]))), note);
+  }
+});
+
+test('a note is rendered as typed, with its surrounding whitespace kept', () => {
+  assert.equal(noteOf(renderIndex(page([noted('  spaced out  ')]))), '  spaced out  ');
+});
+
+test('the note input takes its maxlength from the constant that names sbx-lib as the owner of the number', () => {
+  assert.equal(SBX_LIB_NOTE_MAX_CODE_UNITS, 500);
+  assert.ok(renderIndex(page([])).includes(`maxlength="${SBX_LIB_NOTE_MAX_CODE_UNITS}"`), 'the note input carries no maxlength from the constant');
 });

@@ -1,16 +1,13 @@
-// Isolated development harness: the real sbx-web server against an in-memory
-// stub of the sbx-api client, so every pathway this repo owns can be opened in
-// a browser with no API and no network. Not a fake API, just enough of one.
 import { createServer } from '../src/server.js';
 
 const seed = [
   { id: 1, title: 'Node.js docs', url: 'https://nodejs.org/docs', tags: ['node', 'docs'], createdAt: '2026-10-01T09:00:00.000Z' },
   { id: 2, title: 'MDN web docs', url: 'https://developer.mozilla.org', tags: ['web', 'reference'], createdAt: '2026-10-02T09:00:00.000Z' },
-  { id: 3, title: 'A <script>alert(1)</script> title', url: 'https://example.com/?a=1&b=2', tags: ['escaping'], createdAt: '2026-10-03T09:00:00.000Z' },
+  { id: 3, title: 'A <script>alert(1)</script> title', url: 'https://example.com/?a=1&b=2', tags: ['escaping'], createdAt: '2026-10-03T09:00:00.000Z', note: 'A note that is also <script>alert(2)</script> trying it on' },
   { id: 4, title: 'sbx-lib', url: 'https://github.com/DanielDTech/sbx-lib', tags: ['sbx'], createdAt: '2026-10-04T09:00:00.000Z' },
 ];
 
-const PER_PAGE = 2; // stub pagination: fixed page size over one array
+const PER_PAGE = 2;
 
 export function createStubClient(bookmarks = seed.map((b) => ({ ...b }))) {
   return {

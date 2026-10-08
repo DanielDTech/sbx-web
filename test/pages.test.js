@@ -106,3 +106,35 @@ test('the note input interpolates the cap from the constant instead of carrying 
   assert.match(input, /maxlength="\$\{SBX_LIB_NOTE_MAX_CODE_UNITS\}"/, 'the maxlength is not interpolated from the constant');
   assert.doesNotMatch(input, new RegExp(`maxlength="${SBX_LIB_NOTE_MAX_CODE_UNITS}"`), 'the maxlength is a literal in the markup');
 });
+
+const titleOf = (html) => html.match(/<title>(.*?)<\/title>/s)[1];
+const titleOpenings = (html) => (html.match(/<title/g) ?? []).length;
+const numberIn = (text) => Number(text.match(/\d+/)[0]);
+const countOf = (html) => html.match(/<p class="count">(.*?)<\/p>/s)[1];
+const twelve = Array.from({ length: 12 }, (_, i) => ({ ...bookmark, id: i + 1 }));
+
+test('the title carries the total in the format Danny gave, at twelve, one and none', () => {
+  for (const [total, expected] of [[12, 'Bookmarks (12)'], [1, 'Bookmarks (1)'], [0, 'Bookmarks (0)']]) {
+    const html = renderIndex(page([], { total }));
+    assert.equal(titleOpenings(html), 1, `a total of ${total} gave more than one title element`);
+    assert.equal(titleOf(html), expected);
+  }
+});
+
+test('the title is the same on every page of a list and reports the number the header reports', () => {
+  const [first, second] = [1, 2].map((p) => renderIndex({ items: twelve.slice(0, 2), page: p, pages: 6, total: 12 }));
+  assert.equal(titleOf(first), titleOf(second));
+  for (const html of [first, second]) assert.equal(numberIn(titleOf(html)), numberIn(countOf(html)));
+});
+
+test('a total that is not a count leaves the title as the bare word, with no parentheses', () => {
+  for (const total of [undefined, null, 12.5, -1, NaN, '12']) {
+    const list = { items: [], page: 1, pages: 1, total };
+    if (total === undefined) delete list.total;
+    const html = renderIndex(list);
+    assert.equal(titleOpenings(html), 1, `a total of ${JSON.stringify(total)} gave more than one title element`);
+    assert.equal(titleOf(html), 'Bookmarks', `a total of ${JSON.stringify(total)} reached the title`);
+    assert.doesNotMatch(titleOf(html), /[()]/);
+  }
+});
+

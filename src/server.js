@@ -8,6 +8,8 @@ const readForm = (req) => new Promise((resolve) => {
   req.on('end', () => resolve(Object.fromEntries(new URLSearchParams(data))));
 });
 
+const typedNote = (value) => (typeof value === 'string' && value.trim().length > 0 ? value : undefined);
+
 const html = (res, status, body) => {
   res.writeHead(status, { 'content-type': 'text/html; charset=utf-8' });
   res.end(body);
@@ -20,7 +22,8 @@ export function createServer({ client }) {
       if (req.method === 'GET' && url.pathname === '/') return html(res, 200, renderIndex(await client.listBookmarks(Number(url.searchParams.get('page')) || 1)));
       if (req.method === 'POST' && url.pathname === '/add') {
         const input = await readForm(req);
-        const fields = { title: input.title ?? '', url: input.url ?? '', tags: (input.tags ?? '').split(',').map((t) => t.trim()).filter(Boolean) };
+        const note = typedNote(input.note);
+        const fields = { title: input.title ?? '', url: input.url ?? '', tags: (input.tags ?? '').split(',').map((t) => t.trim()).filter(Boolean), ...(note === undefined ? {} : { note }) };
         const check = validateBookmark(fields);
         if (!check.ok) return html(res, 422, renderIndex(await client.listBookmarks(1), check.errors));
         await client.addBookmark(fields);

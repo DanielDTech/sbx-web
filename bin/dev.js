@@ -1,6 +1,3 @@
-// Isolated development harness: the real sbx-web server against an in-memory
-// stub of the sbx-api client, so every pathway this repo owns can be opened in
-// a browser with no API and no network. Not a fake API, just enough of one.
 import { createServer } from '../src/server.js';
 
 const seed = [
@@ -10,7 +7,7 @@ const seed = [
   { id: 4, title: 'sbx-lib', url: 'https://github.com/DanielDTech/sbx-lib', tags: ['sbx'], createdAt: '2026-10-04T09:00:00.000Z' },
 ];
 
-const PER_PAGE = 2; // stub pagination: fixed page size over one array
+const PER_PAGE = 2;
 
 export function createStubClient(bookmarks = seed.map((b) => ({ ...b }))) {
   return {
